@@ -1,0 +1,21 @@
+{
+  "Endpoints": {
+    "KqlClusterUri": "https://YOUR_FABRIC_CLUSTER.kusto.windows.net",
+    "KqlDatabase": "YOUR_DATABASE_NAME",
+    "SqlServerEndpoint": "YOUR_LAKEHOUSE_SQL_ENDPOINT.datawarehouse.fabric.microsoft.com",
+    "SqlDatabase": "YOUR_DATABASE_NAME"
+  },
+  "TestConfiguration": {
+    "IterationSizes": [ 10, 100, 1000, 10000 ],
+    "RunsPerIteration": 5,
+    "Queries": {
+      "Kql": "YOUR_KQL_TABLE | order by YOUR_TIMESTAMP_FIELD asc | take {rowCount}",
+      "Sql": "SELECT TOP (@rowCount) * FROM dbo.YOUR_DATABASE_TABLE ORDER BY YOUR_TIMESTAMP_FIELD"
+    }
+  },
+  "Output": {
+    "ConsoleReport": true,
+    "CsvReportPath": "./results/results.csv",
+    "StatisticsCsvReportPath": "./results/statistics.csv"
+  }
+}
