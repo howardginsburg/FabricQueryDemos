@@ -12,13 +12,35 @@ using Microsoft.Extensions.Configuration;
 using FabricQueryDemos.Clients;
 using FabricQueryDemos.Models;
 
+// ============================================================================
+// Fabric Query Test Engine
+// ============================================================================
+// A performance testing harness for comparing query performance across
+// Microsoft Fabric's query interfaces: KQL (Event Houses) and 
+// T-SQL (Lakehouses/Warehouses).
+//
+// Features:
+// - Dynamic schema support (works with any table structure)
+// - Multiple iteration sizes for comprehensive testing
+// - Statistical analysis (mean, stddev, percentiles)
+// - CSV export for further analysis
+// - Azure AD authentication via DefaultAzureCredential
+// ============================================================================
+
 class Program
 {
     static async Task Main(string[] args)
     {
         try
         {
-            // Validate Azure CLI login
+            // ===== STEP 1: Authentication Validation =====
+            // Verify Azure credentials are configured before attempting to connect to Fabric.
+            // DefaultAzureCredential supports multiple authentication methods in this priority:
+            // 1. Environment variables (service principal)
+            // 2. Managed identity (when running in Azure)
+            // 3. Visual Studio / VS Code credentials
+            // 4. Azure CLI credentials (az login)
+            // 5. Azure PowerShell credentials
             if (!await ValidateAzureCliLogin())
             {
                 Console.WriteLine("\nError: Azure CLI is not logged in.");
@@ -29,7 +51,10 @@ class Program
                 return;
             }
 
-            // Load configuration
+            // ===== STEP 2: Configuration Loading =====
+            // Load test parameters and Fabric endpoints from appsettings.json.
+            // This includes: cluster URIs, database names, query templates,
+            // iteration sizes, and number of runs per iteration.
             var configPath = "appsettings.json";
             if (!File.Exists(configPath))
             {
@@ -43,9 +68,11 @@ class Program
                 .AddJsonFile(configPath, optional: false, reloadOnChange: true)
                 .Build();
 
-            Console.WriteLine("=== Fabric Query Test Engine ===\n");
+            Console.WriteLine("=== Fabric Query Test Engine ===");
 
-            // Initialize clients
+            // ===== STEP 3: Client Initialization =====
+            // Create query client instances for each Fabric interface we want to test.
+            // Each client encapsulates the connection logic and authentication for its respective API.
             var kqlEndpoint = config["Endpoints:KqlClusterUri"];
             var kqlDatabase = config["Endpoints:KqlDatabase"];
             var sqlEndpoint = config["Endpoints:SqlServerEndpoint"];
@@ -72,7 +99,14 @@ class Program
                 StartTime = DateTime.UtcNow
             };
 
-            // Run tests
+            // ===== STEP 4: Test Execution =====
+            // Run performance tests in a nested loop structure:
+            // - Outer loop: Different row counts (e.g., 10, 100, 1000, 10000)
+            // - Middle loop: Different query clients (KQL, SQL)
+            // - Inner loop: Multiple runs for statistical significance (typically 5 runs)
+            //
+            // This structure allows us to compare performance across both
+            // different data sizes and different query interfaces.
             foreach (var size in iterationSizes)
             {
                 Console.WriteLine($"\n--- Testing with {size} rows ---");
@@ -81,11 +115,13 @@ class Program
                 {
                     Console.WriteLine($"  Running {client.GetClientName()}...");
                     
+                    // Execute multiple runs for each combination to get statistical significance
                     for (int run = 1; run <= runsPerIteration; run++)
                     {
                         var sw = Stopwatch.StartNew();
                         try
                         {
+                            // Execute the query and measure elapsed time
                             var rows = await client.ExecuteQueryAsync(size);
                             sw.Stop();
 
@@ -115,10 +151,18 @@ class Program
             testResult.EndTime = DateTime.UtcNow;
             testResult.Success = string.IsNullOrEmpty(testResult.ErrorMessage);
 
-            // Calculate statistics
+            // ===== STEP 5: Statistical Analysis =====
+            // Calculate aggregated statistics from all runs including:
+            // - Mean and standard deviation for latency distribution
+            // - Percentiles (P50/median, P95, P99) for tail latency analysis
+            // - Throughput in rows per second
             CalculateStatistics(testResult);
 
-            // Output results
+            // ===== STEP 6: Results Output =====
+            // Generate multiple output formats for analysis:
+            // 1. Console report: Human-readable summary
+            // 2. Runs CSV: Raw data for each individual query execution
+            // 3. Statistics CSV: Aggregated metrics for visualization/comparison
             OutputConsoleReport(testResult);
             await OutputCsvReport(testResult, config);
             await OutputStatisticsCsvReport(testResult, config);
@@ -136,11 +180,16 @@ class Program
     {
         try
         {
+            // Create a DefaultAzureCredential which chains multiple credential types
             var credential = new DefaultAzureCredential();
-            // Try to get a token for a common scope to verify authentication
+            
+            // Attempt to acquire a token for Azure Management API to verify authentication.
+            // This is a lightweight check that doesn't require Fabric-specific permissions.
+            // If this fails, none of the Fabric APIs will work either.
             var token = await credential.GetTokenAsync(new Azure.Core.TokenRequestContext(new[] { "https://management.azure.com/.default" }));
             
-            // Parse token to extract user information
+            // Parse the JWT token to extract and display the authenticated identity.
+            // This helps users confirm which account/principal they're using.
             var userInfo = ParseTokenClaims(token.Token);
             
             Console.WriteLine("✓ Azure authentication verified");
@@ -163,14 +212,17 @@ class Program
     {
         try
         {
-            // JWT tokens have three parts separated by dots: header.payload.signature
+            // JWT (JSON Web Token) structure: header.payload.signature
+            // We only need the payload section which contains the claims
             var parts = token.Split('.');
             if (parts.Length < 2)
                 return "Unknown";
 
-            // Decode the payload (second part)
+            // The payload is base64url-encoded (not standard base64)
             var payload = parts[1];
-            // Add padding if needed for base64 decoding
+            
+            // Base64 strings must be a multiple of 4 characters. Add padding if needed.
+            // JWT tokens use base64url which omits padding, so we add it back.
             var paddedPayload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
             var jsonBytes = Convert.FromBase64String(paddedPayload);
             var json = System.Text.Encoding.UTF8.GetString(jsonBytes);
@@ -178,7 +230,9 @@ class Program
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             
-            // Try to extract useful identity information
+            // Extract identity claims from the token in order of preference.
+            // Different token types (user, service principal, managed identity)
+            // have different claim structures.
             var upn = root.TryGetProperty("upn", out var upnProp) ? upnProp.GetString() : null;
             var email = root.TryGetProperty("email", out var emailProp) ? emailProp.GetString() : null;
             var name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
@@ -207,12 +261,17 @@ class Program
 
     static void CalculateStatistics(TestResult result)
     {
+        // Group test runs by iteration size and client type.
+        // This allows us to calculate statistics for each combination separately.
+        // Example groups: (10 rows, KQL), (10 rows, SQL), (100 rows, KQL), etc.
         var groupedRuns = result.Runs
             .GroupBy(r => new { r.IterationSize, r.Client })
             .ToList();
 
         foreach (var group in groupedRuns)
         {
+            // Sort latencies for percentile calculations.
+            // Percentiles require sorted data.
             var latencies = group.Select(r => r.ElapsedMilliseconds).OrderBy(l => l).ToList();
             
             var stats = new IterationStatistics
@@ -220,17 +279,18 @@ class Program
                 IterationSize = group.Key.IterationSize,
                 Client = group.Key.Client,
                 RawLatencies = latencies.ToList(),
-                Mean = (long)latencies.Average(),
-                Min = latencies.First(),
-                Max = latencies.Last(),
-                P50 = GetPercentile(latencies, 50),
-                P95 = GetPercentile(latencies, 95),
-                P99 = GetPercentile(latencies, 99),
+                Mean = (long)latencies.Average(),  // Average latency
+                Min = latencies.First(),            // Best case (fastest)
+                Max = latencies.Last(),             // Worst case (slowest)
+                P50 = GetPercentile(latencies, 50), // Median - typical performance
+                P95 = GetPercentile(latencies, 95), // 95% of queries faster than this
+                P99 = GetPercentile(latencies, 99), // 99% of queries faster than this
                 TotalRowsRetrieved = group.Sum(r => r.RowCount),
                 TotalPayloadBytes = group.Sum(r => r.PayloadBytes)
             };
 
-            // Calculate standard deviation
+            // Calculate standard deviation - measures consistency/variability of latencies.
+            // Low stddev = consistent performance, high stddev = variable performance
             if (latencies.Count > 1)
             {
                 var variance = latencies.Average(x => Math.Pow(x - stats.Mean, 2));
@@ -250,7 +310,12 @@ class Program
     {
         if (sortedValues.Count == 0) return 0;
         
+        // Calculate the index position for the given percentile.
+        // Example: For P95 with 100 values: (95/100) * 100 = 95th value
+        // We use Ceiling to round up, ensuring we don't underestimate the percentile
         var index = (int)Math.Ceiling((percentile / 100.0) * sortedValues.Count) - 1;
+        
+        // Clamp the index to valid array bounds to handle edge cases
         return sortedValues[Math.Max(0, Math.Min(index, sortedValues.Count - 1))];
     }
 
@@ -277,15 +342,20 @@ class Program
 
     static async Task OutputCsvReport(TestResult result, IConfiguration config)
     {
+        // Export raw run data to CSV for detailed analysis.
+        // Each row represents one query execution with all its metrics.
+        // Useful for: creating custom visualizations, statistical analysis, or sharing results.
         var outputPath = config["Output:CsvReportPath"] ?? "./results/results.csv";
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? "./results");
 
         using var writer = new StreamWriter(outputPath);
         using var csv = new CsvWriter(writer, System.Globalization.CultureInfo.InvariantCulture);
         
+        // CsvHelper automatically generates header from QueryRun properties
         csv.WriteHeader<QueryRun>();
         await csv.NextRecordAsync();
         
+        // Write each run as a row in the CSV
         foreach (var run in result.Runs)
         {
             csv.WriteRecord(run);
@@ -297,12 +367,16 @@ class Program
 
     static async Task OutputStatisticsCsvReport(TestResult result, IConfiguration config)
     {
+        // Export aggregated statistics to CSV for high-level comparison.
+        // Each row represents the statistical summary for one (size, client) combination.
+        // Useful for: creating comparison charts, identifying performance trends.
         var outputPath = config["Output:StatisticsCsvReportPath"] ?? "./results/statistics.csv";
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? "./results");
 
         using var writer = new StreamWriter(outputPath);
         using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
 
+        // Manually define headers since we're not using CsvHelper's automatic mapping
         csv.WriteField("IterationSize");
         csv.WriteField("Client");
         csv.WriteField("MeanMs");
