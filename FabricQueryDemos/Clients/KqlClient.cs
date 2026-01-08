@@ -41,7 +41,7 @@ namespace FabricQueryDemos.Clients
     // Key features:
     // - Dynamic schema support (works with any table structure)
     // - Returns results as ExpandoObjects for flexibility
-    // - Uses DefaultAzureCredential for authentication
+    // - Uses AzureCliCredential for authentication
     // - Configurable query timeout (3 minutes)
     // ============================================================================
     
@@ -71,7 +71,7 @@ namespace FabricQueryDemos.Clients
                 var query = _queryTemplate.Replace("{rowCount}", rowCount.ToString());
 
                 // Set up Azure AD authentication for Kusto
-                var credential = new DefaultAzureCredential();
+                var credential = new AzureCliCredential();
                 
                 // Token provider function called by Kusto SDK when token is needed
                 string AcquireToken()

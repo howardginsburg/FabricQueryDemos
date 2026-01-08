@@ -52,7 +52,7 @@ namespace FabricQueryDemos.Clients
             // Acquire an Azure AD access token for SQL Database.
             // The scope "https://database.windows.net/.default" works for both
             // Azure SQL Database and Microsoft Fabric SQL endpoints.
-            var credential = new DefaultAzureCredential();
+            var credential = new AzureCliCredential();
             var token = await credential.GetTokenAsync(
                 new Azure.Core.TokenRequestContext(new[] { "https://database.windows.net/.default" }));
             

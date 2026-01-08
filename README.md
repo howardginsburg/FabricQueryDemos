@@ -10,7 +10,7 @@ A .NET console application for benchmarking and comparing query execution across
 - **Statistical Analysis**: Calculate mean, standard deviation, min, max, and percentiles (P50, P95, P99)
 - **Multiple Runs**: Execute each test iteration multiple times to ensure statistical reliability
 - **Raw & Aggregate Metrics**: Report all raw latencies plus computed statistics with throughput
-- **Azure AD Authentication**: Seamless authentication using DefaultAzureCredential (az login, managed identity, service principal)
+- **Azure AD Authentication**: Seamless authentication using AzureCliCredential (user or service principal via `az login`)
 - **Multi-Format Output**: Console report and dual CSV exports (individual runs + aggregated statistics)
 - **Well-Documented Code**: Comprehensive inline comments explaining logic and design decisions
 
@@ -18,11 +18,7 @@ A .NET console application for benchmarking and comparing query execution across
 
 - .NET 8.0 or later
 - Access to Microsoft Fabric Event House and/or Lakehouse/Warehouse
-- Azure authentication via one of:
-  - Azure CLI (`az login`)
-  - Managed Identity (when running in Azure)
-  - Service Principal (environment variables)
-  - Visual Studio / VS Code credentials
+- Azure authentication via Azure CLI (`az login` for users, `az login --service-principal` for app identities)
 
 ## Configuration
 
@@ -79,7 +75,7 @@ dotnet build
 dotnet run
 ```
 
-The application will automatically use your Azure credentials via DefaultAzureCredential.
+The application will automatically use your Azure CLI credentials via AzureCliCredential.
 
 ## Output
 
@@ -202,7 +198,7 @@ FabricQueryDemos/
 ## Key Implementation Details
 
 - **Interface-based abstraction**: `IQueryClient` interface allows easy addition of new query clients
-- **DefaultAzureCredential**: Supports multiple authentication methods in order of precedence
+- **AzureCliCredential**: Uses the signed-in Azure CLI identity for token acquisition
 - **Dynamic row construction**: `ExpandoObject` for schema-agnostic data handling
 - **Statistical rigor**: Multiple runs with percentile calculations for reliable metrics
 - **Comprehensive logging**: Inline comments throughout codebase explain logic and decisions

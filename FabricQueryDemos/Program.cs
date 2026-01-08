@@ -24,7 +24,7 @@ using FabricQueryDemos.Models;
 // - Multiple iteration sizes for comprehensive testing
 // - Statistical analysis (mean, stddev, percentiles)
 // - CSV export for further analysis
-// - Azure AD authentication via DefaultAzureCredential
+// - Azure AD authentication via AzureCliCredential
 // ============================================================================
 
 class Program
@@ -34,13 +34,7 @@ class Program
         try
         {
             // ===== STEP 1: Authentication Validation =====
-            // Verify Azure credentials are configured before attempting to connect to Fabric.
-            // DefaultAzureCredential supports multiple authentication methods in this priority:
-            // 1. Environment variables (service principal)
-            // 2. Managed identity (when running in Azure)
-            // 3. Visual Studio / VS Code credentials
-            // 4. Azure CLI credentials (az login)
-            // 5. Azure PowerShell credentials
+            // Verify Azure CLI credentials are configured before attempting to connect to Fabric.
             if (!await ValidateAzureCliLogin())
             {
                 Console.WriteLine("\nError: Azure CLI is not logged in.");
@@ -180,8 +174,8 @@ class Program
     {
         try
         {
-            // Create a DefaultAzureCredential which chains multiple credential types
-            var credential = new DefaultAzureCredential();
+            // Use Azure CLI identity explicitly to avoid unexpected credential sources
+            var credential = new AzureCliCredential();
             
             // Attempt to acquire a token for Azure Management API to verify authentication.
             // This is a lightweight check that doesn't require Fabric-specific permissions.
