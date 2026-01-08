@@ -16,7 +16,7 @@ A .NET console application for benchmarking and comparing query execution across
 
 ## Prerequisites
 
-- .NET 8.0 or later
+- .NET 9.0 or later
 - Access to Microsoft Fabric Event House and/or Lakehouse/Warehouse
 - Azure authentication via Azure CLI (`az login` for users, `az login --service-principal` for app identities)
 
