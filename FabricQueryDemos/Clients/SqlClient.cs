@@ -44,7 +44,8 @@ namespace FabricQueryDemos.Clients
                 DataSource = _serverEndpoint,          // SQL endpoint hostname
                 InitialCatalog = _database,            // Database to connect to
                 Encrypt = true,                        // Required for Azure SQL/Fabric
-                TrustServerCertificate = false         // Validate server certificate
+                TrustServerCertificate = false,        // Validate server certificate
+                Pooling = false                        // Disable connection pooling for fresh connections
             }.ConnectionString;
 
             using var connection = new SqlConnection(connectionString);

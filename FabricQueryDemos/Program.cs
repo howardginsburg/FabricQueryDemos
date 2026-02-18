@@ -340,6 +340,9 @@ class Program
         // Each row represents one query execution with all its metrics.
         // Useful for: creating custom visualizations, statistical analysis, or sharing results.
         var outputPath = config["Output:CsvReportPath"] ?? "./results/results.csv";
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+        outputPath = Path.Combine(Path.GetDirectoryName(outputPath) ?? "./results",
+            $"{Path.GetFileNameWithoutExtension(outputPath)}_{timestamp}{Path.GetExtension(outputPath)}");
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? "./results");
 
         using var writer = new StreamWriter(outputPath);
@@ -365,6 +368,9 @@ class Program
         // Each row represents the statistical summary for one (size, client) combination.
         // Useful for: creating comparison charts, identifying performance trends.
         var outputPath = config["Output:StatisticsCsvReportPath"] ?? "./results/statistics.csv";
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+        outputPath = Path.Combine(Path.GetDirectoryName(outputPath) ?? "./results",
+            $"{Path.GetFileNameWithoutExtension(outputPath)}_{timestamp}{Path.GetExtension(outputPath)}");
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? "./results");
 
         using var writer = new StreamWriter(outputPath);
